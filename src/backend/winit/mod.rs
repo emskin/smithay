@@ -594,6 +594,10 @@ impl<F: FnMut(WinitEvent)> ApplicationHandler for WinitEventLoopApp<'_, F> {
                 };
                 (self.callback)(WinitEvent::Input(event));
             }
+            WindowEvent::Ime(ref ime) => {
+                tracing::debug!("smithay winit: WindowEvent::Ime({ime:?})");
+                (self.callback)(WinitEvent::Ime(ime.clone()));
+            }
             WindowEvent::DroppedFile(_)
             | WindowEvent::Destroyed
             | WindowEvent::CursorEntered { .. }
@@ -603,7 +607,6 @@ impl<F: FnMut(WinitEvent)> ApplicationHandler for WinitEventLoopApp<'_, F> {
             | WindowEvent::KeyboardInput { .. }
             | WindowEvent::HoveredFile(_)
             | WindowEvent::HoveredFileCancelled
-            | WindowEvent::Ime(_)
             | WindowEvent::Moved(_)
             | WindowEvent::Occluded(_)
             | WindowEvent::DoubleTapGesture { .. }
@@ -705,4 +708,7 @@ pub enum WinitEvent {
 
     /// A redraw was requested
     Redraw,
+
+    /// An IME event from the host compositor.
+    Ime(winit::event::Ime),
 }

@@ -19,6 +19,8 @@ pub(crate) struct TextInput {
     instances: Vec<Instance>,
     focus: Option<WlSurface>,
     active_text_input_id: Option<ObjectId>,
+    /// Last cursor rectangle set by the active text-input client (surface-local).
+    cursor_rectangle: Option<Rectangle<i32, Logical>>,
 }
 
 impl TextInput {
@@ -141,6 +143,12 @@ impl TextInputHandle {
         });
     }
 
+    /// Return the last cursor rectangle set by the active text-input client.
+    /// Coordinates are surface-local (relative to the focused surface).
+    pub fn cursor_rectangle(&self) -> Option<Rectangle<i32, Logical>> {
+        self.inner.lock().unwrap().cursor_rectangle
+    }
+
     /// Access the text-input instances for the currently focused surface.
     pub fn with_focused_text_input<F>(&self, mut f: F)
     where
@@ -206,12 +214,6 @@ where
         // Always increment serial to not desync with clients.
         if matches!(request, zwp_text_input_v3::Request::Commit) {
             data.handle.increment_serial(resource);
-        }
-
-        // Discard requests without any active input method instance.
-        if !data.input_method_handle.has_instance() {
-            debug!("discarding text-input request without IME running");
-            return;
         }
 
         let focus = match data.handle.focus() {
@@ -311,6 +313,7 @@ where
                 }
 
                 if let Some(rect) = new_state.cursor_rectangle.take() {
+                    data.handle.inner.lock().unwrap().cursor_rectangle = Some(rect);
                     data.input_method_handle
                         .set_text_input_rectangle::<D>(state, rect);
                 }
