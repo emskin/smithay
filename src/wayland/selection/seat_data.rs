@@ -50,7 +50,14 @@ impl<U: Clone + Send + Sync + 'static> SeatData<U> {
     {
         if self.clipboard_selection_focus != new_focus {
             self.clipboard_selection_focus = new_focus;
-            self.send_selection::<D>(dh, SelectionTarget::Clipboard, None, false)
+            // Only broadcast when there is an active selection.
+            // Sending selection(nil) on initial focus confuses GTK3 —
+            // it marks the data source as inactive, breaking subsequent
+            // wl_data_source.send callbacks. KWin / wlroots don't send
+            // selection(nil) when there is no selection to offer.
+            if self.clipboard_selection.is_some() {
+                self.send_selection::<D>(dh, SelectionTarget::Clipboard, None, false)
+            }
         }
     }
 
@@ -83,7 +90,9 @@ impl<U: Clone + Send + Sync + 'static> SeatData<U> {
     {
         if self.primary_selection_focus != new_focus {
             self.primary_selection_focus = new_focus;
-            self.send_selection::<D>(dh, SelectionTarget::Primary, None, false)
+            if self.primary_selection.is_some() {
+                self.send_selection::<D>(dh, SelectionTarget::Primary, None, false)
+            }
         }
     }
 
@@ -180,6 +189,13 @@ impl<U: Clone + Send + Sync + 'static> SeatData<U> {
                     continue;
                 }
                 (Some(ref selection), _) => {
+                    // Don't send the selection offer back to the source owner's
+                    // data_device / primary_selection_device. Doing so confuses
+                    // GTK3 (and possibly other toolkits) — they see their own
+                    // selection arriving as a new offer and stop responding to
+                    // wl_data_source.send events. Data-control devices are exempt
+                    // because clipboard managers need to see all selections.
+                    // This matches wlroots / KWin behaviour.
                     // DataControl devices is the client itself, however other devices use
                     // the currently focused one as a client.
                     let client_id = match device {
