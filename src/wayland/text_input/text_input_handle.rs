@@ -72,13 +72,21 @@ pub struct TextInputHandle {
 
 impl TextInputHandle {
     pub(super) fn add_instance(&self, instance: &ZwpTextInputV3) {
-        let mut inner = self.inner.lock().unwrap();
-        inner.instances.push(Instance {
-            instance: instance.clone(),
-            serial: 0,
-            pending_state: Default::default(),
-        });
+    let mut inner = self.inner.lock().unwrap();
+    inner.instances.push(Instance {
+        instance: instance.clone(),
+        serial: 0,
+        pending_state: Default::default(),
+    });
+    // If a focus is already set, send enter to the new instance immediately.
+    // This handles the case where keyboard focus is granted before the client
+    // creates its text_input object.
+    if let Some(ref focus) = inner.focus.clone() {
+        if focus.is_alive() && instance.id().same_client_as(&focus.id()) {
+            instance.enter(focus);
+        }
     }
+}
 
     fn increment_serial(&self, text_input: &ZwpTextInputV3) {
         if let Some(instance) = self
