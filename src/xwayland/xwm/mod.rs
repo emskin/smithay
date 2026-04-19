@@ -1076,6 +1076,12 @@ impl X11Wm {
                 .set_selection_owner(x11rb::NONE, selection.atom, selection.timestamp)?;
         }
 
+        // Flush so set_selection_owner reaches the X server immediately.
+        // Without this, other X clients querying CLIPBOARD right after a
+        // compositor-initiated new_selection observe "no owner" because
+        // the request is still buffered in the x11rb connection.
+        self.conn.flush()?;
+
         Ok(())
     }
 
