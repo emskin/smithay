@@ -78,12 +78,19 @@ impl TextInputHandle {
             serial: 0,
             pending_state: Default::default(),
         });
-        // If a focus is already set, send enter to the new instance immediately.
-        // This handles the case where keyboard focus is granted before the client
-        // creates its text_input object.
+        // Only send enter if focus is set but no instance from this client
+        // has received enter yet. This handles compositors that set keyboard
+        // focus before the client creates its text_input object.
         if let Some(ref focus) = inner.focus.clone() {
             if focus.is_alive() && instance.id().same_client_as(&focus.id()) {
-                instance.enter(focus);
+                // Check if any existing instance from this client already got enter.
+                // If so, the compositor has already handled the enter flow normally.
+                let already_entered = inner.instances.iter().any(|i| {
+                    i.instance != *instance && i.instance.id().same_client_as(&focus.id()) && i.serial > 0
+                });
+                if !already_entered {
+                    instance.enter(focus);
+                }
             }
         }
     }
